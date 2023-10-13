@@ -7,6 +7,9 @@ const mongoose = require('mongoose');
 const express = require('express');
 const app = express();
 const session = require('express-session');
+const fs = require('fs');
+
+const path = require('path');
 
 
 
@@ -208,9 +211,11 @@ async function sendNotificationsAndSave(animes) {
                                             try {
                                                 await anime.save();
 
-
+                                                const dataPar = data.urlImg.split('/');
+                                                const codecons = dataPar[dataPar.length - 1];
+                                                const rutaGuardar = `server/pic/${codecons}`;
                                                 //   console.log("Notificación enviada exitosamente:",);
-                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`, data.urlImg)
+                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`, data.urlImg, rutaGuardar)
 
                                             } catch (error) {
                                                 console.error("Error al guardar anime o enviar notificación:", error);
@@ -400,7 +405,11 @@ async function sendNotificationsAndSave(animes) {
 
 
                                                                 console.log("Notificación enviada exitosamente:",);
-                                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`, data.urlImg)
+                                                                const dataPar = data.urlImg.split('/');
+                                                                const codecons = dataPar[dataPar.length - 1];
+                                                                const rutaGuardar = `server/pic/${codecons}`;
+                                                                //   console.log("Notificación enviada exitosamente:",);
+                                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`, data.urlImg, rutaGuardar)
 
 
                                                             } catch (error) {
@@ -541,7 +550,11 @@ async function sendNotificationsAndSave(animes) {
                                                     }
                                                 }
                                                 //   console.log("Notificación enviada exitosamente:",);
-                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`,data.urlImg)
+                                                const dataPar = data.urlImg.split('/');
+                                                const codecons = dataPar[dataPar.length - 1];
+                                                const rutaGuardar = `server/pic/${codecons}`;
+                                                //   console.log("Notificación enviada exitosamente:",);
+                                                enviarMensajeDM(`Salio el capitulo ${capiNumerSplit} de ${data.title}`, data.urlImg, rutaGuardar)
 
 
                                             } catch (error) {
@@ -598,17 +611,49 @@ async function sendNotificationsAndSave(animes) {
     }
 }
 
-function enviarMensajeDM(msj, imageUrl) {
+function enviarMensajeDM(msj, url, imageUrl) {
+    descargarYGuardarImagenSiNoExiste(url, imageUrl)
+        .then(() => {
+            const urlpar = imageUrl.split('/');
+            const code = urlpar[urlpar.length - 1];
+            const imagePath = path.join(__dirname, 'server', 'pic', code);
+            const full = './' + imageUrl;
+            const id_chnnel = '1162239654041485385';
+            const channel = client.channels.cache.get(id_chnnel);
+            if (channel) {
+                const embed = new EmbedBuilder()
+                    .setColor('#0099ff') // Color del embed
+                    .setTitle('Nuevo capitulo') // Título del embed
+                    .setDescription(msj).setThumbnail(`attachment://anime.jpg`);
+                console.log(code);
+                // Agregar una imagen al embed
 
-    const id_chnnel = '1162239654041485385';
+                // Enviar el embed al canal
+                channel.send({
+                    embeds: [embed], files: [
+                        {
+                            attachment: `./server/pic/${code}`,
+                            name: `anime.jpg`
+                        }
+                    ]
+                })
+                    .then(() => console.log('Embed enviado con éxito'))
+                    .catch(error => console.error(`Error al enviar el embed: ${error.message}`));
+            } else {
+                console.error("no se q pasa XD");
+            }
+        })
+        .catch(error => console.error('Error:', error));
+
+    /*const id_chnnel = '1162239654041485385';
     const channel = client.channels.cache.get(id_chnnel);
     if (channel) {
         const embed = new EmbedBuilder()
             .setColor('#0099ff') // Color del embed
             .setTitle('Nuevo capitulo') // Título del embed
             .setDescription(msj).setThumbnail(imageUrl);
-            console.log(imageUrl);
-             // Agregar una imagen al embed
+        console.log(imageUrl);
+        // Agregar una imagen al embed
 
         // Enviar el embed al canal
         channel.send({ embeds: [embed] })
@@ -616,8 +661,31 @@ function enviarMensajeDM(msj, imageUrl) {
             .catch(error => console.error(`Error al enviar el embed: ${error.message}`));
     } else {
         console.error("no se q pasa XD");
-    }
+    }*/
 
+}
+async function descargarYGuardarImagenSiNoExiste(url, rutaGuardar) {
+    if (!imagenExiste(rutaGuardar)) {
+        const respuesta = await axios({
+            method: 'GET',
+            url: url,
+            responseType: 'stream',
+        });
+
+        respuesta.data.pipe(fs.createWriteStream(rutaGuardar));
+
+        return new Promise((resolve, reject) => {
+            respuesta.data.on('end', () => resolve());
+            respuesta.data.on('error', (error) => reject(error));
+        });
+    } else {
+        console.log('La imagen ya existe. No es necesario descargarla nuevamente.');
+        return Promise.resolve();
+    }
+}
+// Función para verificar si la imagen ya existe
+function imagenExiste(ruta) {
+    return fs.existsSync(ruta);
 }
 
 // Ejemplo de cómo usar la función
